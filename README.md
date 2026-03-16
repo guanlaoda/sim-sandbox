@@ -233,6 +233,87 @@ simulation:
 | **Robustness** | 注入事件处理、错误恢复、稳定性 | 15% |
 | **Performance** | 响应延迟、对话效率 | 15% |
 
+## 用户风格化噪声 (Noise Profile)
+
+框架支持在对练过程中自动注入**真实感文本噪声**，模拟不同用户通过语音/键盘输入时的各种失真。每个画像自动生成一套噪声配置，与年龄、技术素养、沟通风格联动。
+
+### 噪声类型
+
+| 噪声类型 | 参数 | 说明 | 示例 |
+|----------|------|------|------|
+| **ASR 语音错误** | `asr_error_rate` | 同音字/近音字替换、声母混淆 | 北京→背景，机票→鸡票 |
+| **打字错误** | `typo_rate` | 拼音选词错误、同音词混淆 | 航班→杭班，经济舱→精济仓 |
+| **方言特征** | `dialect` | 方言词汇和语气后缀 | 好的→要得(川)，你→侬(沪) |
+| **表情符号** | `emoji_frequency` | 根据心情插入 emoji | 文末添加 😄/😭/🔥 |
+| **语气词** | `filler_word_rate` | 犹豫词、口头禅插入 | 嗯...那个...就是说... |
+| **缩写** | `abbreviation_rate` | 城市/术语缩写 | 北京→bj，经济舱→jjc |
+| **网络用语** | `internet_slang` | 年轻人网络梗替换 | 很好→yyds，没办法→蚌埠住了 |
+| **自我纠正** | `self_correction_rate` | 先说错再改正 | 去南京，不对，去北京 |
+| **标点混乱** | `punctuation_chaos` | 标点遗漏或叠加感叹号 | 删除标点 / 加 ！！！ |
+
+### 方言支持
+
+| 方言 | 代码 | 特征词示例 |
+|------|------|-----------|
+| 北方口语 | `northern` | 咋整、得嘞、中不中、儿化音 |
+| 南方口语 | `southern` | 蛮好的、晓得、要得 |
+| 粤语混用 | `cantonese` | 唔该、有冇、靓、咩 |
+| 川渝口语 | `sichuan` | 要得、巴适、莫得、啥子 |
+| 吴语特征 | `shanghai` | 阿拉、侬、老好的 |
+
+### 自动联动规则
+
+噪声参数根据画像属性自动调整：
+
+- **老年用户** → ASR 错误率↑ (口音重)、表情使用↓、打字错误↑
+- **年轻用户** → 表情符号↑、网络用语✓、缩写↑
+- **低技术素养** → 打字错误↑
+- **verbose 风格** → 语气词↑
+- **emotional 风格** → 标点混乱↑ (多感叹号)
+
+### 配置方式
+
+在 `personas/default_distribution.yaml` 中配置噪声分布：
+
+```yaml
+distributions:
+  noise_profile:
+    asr_error_rate:          # ASR 错误率分布
+      type: uniform
+      min: 0.0
+      max: 0.15
+    typo_rate:               # 打字错误率分布
+      type: uniform
+      min: 0.0
+      max: 0.10
+    dialect:                 # 方言概率分布
+      none: 0.50
+      northern: 0.15
+      southern: 0.10
+      cantonese: 0.10
+      sichuan: 0.10
+      shanghai: 0.05
+    emoji_frequency:         # 表情使用频率
+      type: uniform
+      min: 0.0
+      max: 0.30
+    internet_slang_probability: 0.30  # 网络用语概率
+
+# 老年用户 ASR 错误更高
+correlations:
+  - if: { age_group: senior }
+    then:
+      noise_profile:
+        asr_error_rate: { type: normal, mean: 0.20, std: 0.05 }
+```
+
+### 策略差异
+
+| 策略 | 噪声应用方式 |
+|------|-------------|
+| **RuleBasedStrategy** | 全部 9 类噪声通过后处理注入 |
+| **LLMAssistedStrategy** | 方言/表情/语气词/网络用语通过 system prompt 指导 LLM 生成；ASR/打字/缩写/标点通过后处理注入 |
+
 ## 场景定义
 
 场景使用 YAML 格式定义，包含:

@@ -10,8 +10,9 @@ import re
 from typing import Any, Dict, List, Optional
 
 from ..models.conversation import ConversationState
-from ..models.persona import CommunicationStyle, UserPersona
+from ..models.persona import CommunicationStyle, NoiseProfile, UserPersona
 from ..models.scenario import Injection, Scenario
+from .noise import NoiseInjector
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ class RuleBasedStrategy(BaseStrategy):
     def __init__(self, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
         self._opening_slots: set[str] = set()  # 开场白中已提及的 slot
+        self._noise: NoiseInjector | None = None  # 延迟初始化
 
     # ---- 辅助方法 ----
 
@@ -220,6 +222,20 @@ class RuleBasedStrategy(BaseStrategy):
         v = _localize_slot(slot_name, raw_value)
         templates = _SLOT_TEMPLATES.get(slot_name, ["{v}"])
         return self._pick(templates).format(v=v)
+
+    def _ensure_noise(self, persona: UserPersona) -> NoiseInjector:
+        """确保按画像初始化噪声注入器"""
+        if self._noise is None:
+            self._noise = NoiseInjector(
+                persona.skeleton.noise_profile,
+                seed=hash(persona.skeleton.persona_id) % (2**31),
+            )
+        return self._noise
+
+    def _apply_noise(self, text: str, persona: UserPersona, mood: float = 0.5) -> str:
+        """对文本施加噪声"""
+        injector = self._ensure_noise(persona)
+        return injector.apply(text, mood=mood)
 
     def _is_bot_rude(self, bot_response: str) -> bool:
         return any(kw in bot_response for kw in _RUDE_KEYWORDS)
@@ -271,6 +287,8 @@ class RuleBasedStrategy(BaseStrategy):
             else:
                 msg = f"你好，我想问下{goal.primary_intent}的事"
 
+        msg = self._apply_noise(msg, persona, persona.current_mood)
+
         return UserAction(
             message=msg,
             internal_thought=f"我要{goal.primary_intent}，期望达成目标",
@@ -289,18 +307,22 @@ class RuleBasedStrategy(BaseStrategy):
         goal = scenario.user_goal
         mood_delta = 0.0
 
+        # 初始化噪声注入器
+        noise = self._ensure_noise(persona)
+        cur_mood = state.user_mood
+
         # 0. 检测 bot 是否不礼貌 — 影响情绪并可能回击
         if self._is_bot_rude(bot_response):
             mood_delta -= 0.2
             if state.user_mood + mood_delta < 0.3:
                 return UserAction(
-                    message=self._pick(_OFFENDED_REACTIONS),
+                    message=noise.apply(self._pick(_OFFENDED_REACTIONS), cur_mood),
                     internal_thought="bot 态度恶劣，很生气",
                     mood_delta=mood_delta,
                     wants_to_continue=False,
                 )
             return UserAction(
-                message=self._pick(_OFFENDED_REACTIONS) + "，算了，我继续说正事。",
+                message=noise.apply(self._pick(_OFFENDED_REACTIONS) + "，算了，我继续说正事。", cur_mood),
                 internal_thought="bot 态度不好但忍着继续",
                 mood_delta=mood_delta,
             )
@@ -311,7 +333,7 @@ class RuleBasedStrategy(BaseStrategy):
             mood_delta += injection.user_mood_delta
             msg = self._build_injection_message(injection)
             return UserAction(
-                message=msg,
+                message=noise.apply(msg, cur_mood),
                 internal_thought=f"计划变更: {injection.event_type}",
                 mood_delta=mood_delta,
             )
@@ -343,7 +365,7 @@ class RuleBasedStrategy(BaseStrategy):
             state.slots_offered[slot_name] = slot_value
 
             return UserAction(
-                message=msg,
+                message=noise.apply(msg, cur_mood),
                 internal_thought=f"告诉对方 {slot_name}",
                 mood_delta=0.0,
             )
@@ -351,7 +373,7 @@ class RuleBasedStrategy(BaseStrategy):
         # 3. 所有 slot 已提供，检查 bot 表示完成
         if "确认" in bot_response or "完成" in bot_response or "成功" in bot_response or "预订" in bot_response:
             return UserAction(
-                message=self._pick(_THANKS_MESSAGES),
+                message=noise.apply(self._pick(_THANKS_MESSAGES), cur_mood),
                 internal_thought="任务完成",
                 mood_delta=0.1,
                 wants_to_continue=False,
@@ -370,14 +392,14 @@ class RuleBasedStrategy(BaseStrategy):
             else:
                 msg = self._pick(_WAIT_MESSAGES)
             return UserAction(
-                message=msg,
+                message=noise.apply(msg, cur_mood),
                 internal_thought="等待处理，信息已全",
                 mood_delta=-0.03,
             )
 
         # 5. 默认通用应答
         return UserAction(
-            message=self._pick(_WAIT_MESSAGES),
+            message=noise.apply(self._pick(_WAIT_MESSAGES), cur_mood),
             internal_thought="等待 bot 继续",
         )
 
@@ -388,6 +410,7 @@ class LLMAssistedStrategy(BaseStrategy):
     def __init__(self, llm_client: Any, model: str = "deepseek-chat") -> None:
         self._client = llm_client
         self._model = model
+        self._noise: NoiseInjector | None = None
 
     async def generate_opening(
         self,
@@ -406,7 +429,7 @@ class LLMAssistedStrategy(BaseStrategy):
         )
         return await self._call_llm(system_prompt, [
             {"role": "user", "content": user_prompt},
-        ])
+        ], persona)
 
     async def generate_reply(
         self,
@@ -458,7 +481,7 @@ class LLMAssistedStrategy(BaseStrategy):
         )
 
         messages.append({"role": "user", "content": "\n".join(parts)})
-        return await self._call_llm(system_prompt, messages)
+        return await self._call_llm(system_prompt, messages, persona)
 
     def _build_system_prompt(
         self,
@@ -500,6 +523,7 @@ class LLMAssistedStrategy(BaseStrategy):
 
     async def _call_llm(
         self, system_prompt: str, messages: list[dict[str, str]],
+        persona: UserPersona | None = None,
     ) -> UserAction:
         try:
             all_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -512,8 +536,27 @@ class LLMAssistedStrategy(BaseStrategy):
             )
             content = response.choices[0].message.content or "{}"
             data = json.loads(content)
+            msg = data.get("message", "")
+
+            # 对 LLM 输出施加 ASR/打字噪声后处理 (这类失真 LLM 无法可靠生成)
+            if persona is not None:
+                if self._noise is None:
+                    # 只用 ASR/typo/缩写噪声，其他由 LLM system prompt 处理
+                    np_ = persona.skeleton.noise_profile
+                    post_profile = NoiseProfile(
+                        asr_error_rate=np_.asr_error_rate,
+                        typo_rate=np_.typo_rate,
+                        abbreviation_rate=np_.abbreviation_rate,
+                        punctuation_chaos=np_.punctuation_chaos,
+                    )
+                    self._noise = NoiseInjector(
+                        post_profile,
+                        seed=hash(persona.skeleton.persona_id) % (2**31),
+                    )
+                msg = self._noise.apply(msg)
+
             return UserAction(
-                message=data.get("message", ""),
+                message=msg,
                 internal_thought=data.get("internal_thought", ""),
                 mood_delta=data.get("mood_delta", 0.0),
                 wants_to_continue=data.get("wants_to_continue", True),

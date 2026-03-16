@@ -15,6 +15,8 @@ from ..config import PersonaGenerationConfig
 from ..models.persona import (
     AgeGroup,
     CommunicationStyle,
+    Dialect,
+    NoiseProfile,
     PersonaSkeleton,
     UserPersona,
 )
@@ -126,6 +128,109 @@ class DistributionSampler:
             communication_style=CommunicationStyle(comm_style),
             intent_clarity=round(intent_clarity, 2),
             domain_knowledge={domain: round(float(self._rng.uniform(0, 1)), 2)},
+            noise_profile=self._sample_noise_profile(
+                d, age_group, comm_style, tech_literacy
+            ),
+        )
+
+    def _sample_noise_profile(
+        self,
+        distributions: Dict[str, Any],
+        age_group: str,
+        comm_style: str,
+        tech_literacy: float,
+    ) -> NoiseProfile:
+        """根据分布配置和已有属性采样噪声配置"""
+        nd = distributions.get("noise_profile", {})
+
+        # ASR 错误率
+        asr_error_rate = self._sample_float(
+            nd.get("asr_error_rate", {"type": "uniform", "min": 0.0, "max": 0.15})
+        )
+        # 老年人口音更重
+        if age_group == "senior":
+            asr_error_rate = min(1.0, asr_error_rate + 0.1)
+
+        # 打字错误率
+        typo_rate = self._sample_float(
+            nd.get("typo_rate", {"type": "uniform", "min": 0.0, "max": 0.1})
+        )
+        # 技术素养低 → 打字错误更多
+        if tech_literacy < 0.3:
+            typo_rate = min(1.0, typo_rate + 0.08)
+
+        # 方言
+        dialect_dist = nd.get("dialect", {
+            "none": 0.5, "northern": 0.15, "southern": 0.1,
+            "cantonese": 0.1, "sichuan": 0.1, "shanghai": 0.05,
+        })
+        dialect = self._weighted_choice(dialect_dist)
+
+        # 表情频率
+        emoji_frequency = self._sample_float(
+            nd.get("emoji_frequency", {"type": "uniform", "min": 0.0, "max": 0.3})
+        )
+        if age_group == "young":
+            emoji_frequency = min(1.0, emoji_frequency + 0.15)
+        elif age_group == "senior":
+            emoji_frequency = max(0.0, emoji_frequency - 0.1)
+
+        # 语气词
+        filler_word_rate = self._sample_float(
+            nd.get("filler_word_rate", {"type": "uniform", "min": 0.0, "max": 0.3})
+        )
+        if comm_style == "verbose":
+            filler_word_rate = min(1.0, filler_word_rate + 0.15)
+
+        # 缩写
+        abbreviation_rate = self._sample_float(
+            nd.get("abbreviation_rate", {"type": "uniform", "min": 0.0, "max": 0.15})
+        )
+        if age_group == "young" and tech_literacy > 0.6:
+            abbreviation_rate = min(1.0, abbreviation_rate + 0.1)
+
+        # 网络用语
+        internet_slang = (
+            age_group == "young"
+            and tech_literacy > 0.5
+            and self._rng.random() < nd.get("internet_slang_probability", 0.4)
+        )
+
+        # 自我纠正
+        self_correction_rate = self._sample_float(
+            nd.get("self_correction_rate", {"type": "uniform", "min": 0.0, "max": 0.1})
+        )
+
+        # 标点混乱
+        punctuation_chaos = self._sample_float(
+            nd.get("punctuation_chaos", {"type": "uniform", "min": 0.0, "max": 0.15})
+        )
+        if comm_style == "emotional":
+            punctuation_chaos = min(1.0, punctuation_chaos + 0.1)
+
+        # 应用 noise_profile 相关性重写
+        state = {"age_group": age_group, "communication_style": comm_style}
+        for corr in self._correlations:
+            if self._matches_condition(corr.get("if", {}), state):
+                then = corr.get("then", {})
+                np_overrides = then.get("noise_profile", {})
+                if "asr_error_rate" in np_overrides:
+                    asr_error_rate = self._sample_float(np_overrides["asr_error_rate"])
+                if "typo_rate" in np_overrides:
+                    typo_rate = self._sample_float(np_overrides["typo_rate"])
+                if "emoji_frequency" in np_overrides:
+                    emoji_frequency = self._sample_float(np_overrides["emoji_frequency"])
+
+        return NoiseProfile(
+            asr_error_rate=round(asr_error_rate, 2),
+            typo_rate=round(typo_rate, 2),
+            dialect=Dialect(dialect),
+            emoji_frequency=round(emoji_frequency, 2),
+            filler_word_rate=round(filler_word_rate, 2),
+            abbreviation_rate=round(abbreviation_rate, 2),
+            internet_slang=internet_slang,
+            self_correction_rate=round(self_correction_rate, 2),
+            punctuation_chaos=round(punctuation_chaos, 2),
         )
 
 

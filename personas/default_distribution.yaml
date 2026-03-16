@@ -30,6 +30,53 @@ distributions:
     mean: 0.7
     std: 0.15
 
+  # ---- 噪声配置 ----
+  noise_profile:
+    asr_error_rate:
+      type: uniform
+      min: 0.0
+      max: 0.15
+
+    typo_rate:
+      type: uniform
+      min: 0.0
+      max: 0.10
+
+    dialect:
+      none: 0.50
+      northern: 0.15
+      southern: 0.10
+      cantonese: 0.10
+      sichuan: 0.10
+      shanghai: 0.05
+
+    emoji_frequency:
+      type: uniform
+      min: 0.0
+      max: 0.30
+
+    filler_word_rate:
+      type: uniform
+      min: 0.0
+      max: 0.30
+
+    abbreviation_rate:
+      type: uniform
+      min: 0.0
+      max: 0.15
+
+    internet_slang_probability: 0.30
+
+    self_correction_rate:
+      type: uniform
+      min: 0.0
+      max: 0.10
+
+    punctuation_chaos:
+      type: uniform
+      min: 0.0
+      max: 0.15
+
 # 属性间相关性 — 条件概率重写
 correlations:
   - if:
@@ -41,6 +88,15 @@ correlations:
       patience_level:
         mean: 0.7
         std: 0.15
+      noise_profile:
+        asr_error_rate:
+          type: normal
+          mean: 0.20
+          std: 0.05
+        emoji_frequency:
+          type: uniform
+          min: 0.0
+          max: 0.05
 
   - if:
       age_group: young
@@ -53,6 +109,11 @@ correlations:
         verbose: 0.2
         emotional: 0.3
         formal: 0.1
+      noise_profile:
+        emoji_frequency:
+          type: normal
+          mean: 0.35
+          std: 0.1
 
   - if:
       communication_style: formal
