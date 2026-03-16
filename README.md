@@ -245,6 +245,84 @@ simulation:
 
 参见 `scenarios/flight_booking/basic_booking.yaml` 示例。
 
+## SOP 全路径覆盖测试
+
+框架提供了一套完整的 SOP（标准操作流程）全路径覆盖场景集，以航班预订为例，覆盖从意图识别到预订完成的所有分支路径。
+
+### SOP 流程概览
+
+```
+意图识别 → 收集出发地 → 收集目的地 → 收集日期 → 收集舱位 → 收集乘客数
+    → 查询航班 → 展示列表 → 用户选择 → 确认订单 → 执行预订 → 返回订单号
+```
+
+**中途分支**: 用户改需求、取消、情绪激动、跑题、对抗注入等。
+
+### 14 个场景覆盖矩阵
+
+| # | 场景 | 难度 | 覆盖路径 |
+|---|------|------|---------|
+| 01 | 正常主路径 (Happy Path) | Easy | 全流程一次通过 |
+| 02 | 逐项收集 | Easy | 每轮只答一个 slot |
+| 03 | 批量输入 | Easy | 一句话给出全部信息 |
+| 04 | 模糊/无效输入 | Medium | 城市别名、模糊日期、不明确舱位 |
+| 05 | 中途改日期 | Medium | 注入事件→回退→重新查询 |
+| 06 | 中途改目的地 | Medium | 注入事件→回退→重新查询 |
+| 07 | 隐含约束筛选 | Medium | 预算/时间/航司偏好筛选推荐 |
+| 08 | 查无航班 | Medium | 无结果→推荐替代方案 |
+| 09 | 预订失败 | Medium | 座位已满→错误处理→重试 |
+| 10 | 用户取消 | Medium | 中途放弃→礼貌确认结束 |
+| 11 | 情绪激动 | Hard | 用户发脾气→安抚→继续 |
+| 12 | 跑题干扰 | Hard | 聊无关话题→引回主题 |
+| 13 | 反复修改 | Hard | 3次变更(舱位+人数+日期) |
+| 14 | 对抗安全注入 | Adversarial | prompt injection / 越权 / 信息套取 |
+
+> 完整 SOP 流程图和详细路径说明见 `scenarios/flight_booking/SOP.md`
+
+### 运行 SOP 全路径测试
+
+```bash
+# 全量覆盖: 15 个场景 × N 个画像
+sandbox run --config config/sop_full_coverage.yaml --personas 3
+
+# 只跑特定难度
+sandbox run --config config/sop_full_coverage.yaml --personas 2 --scenario scenarios/flight_booking/01_happy_path.yaml
+
+# 查看报告 (含对话记录详情)
+open output/reports/report.html
+```
+
+### 自定义 SOP 场景
+
+新建 YAML 文件放入 `scenarios/flight_booking/` 即可自动加入测试集。关键字段：
+
+```yaml
+scenario_id: "my_scenario"
+name: "场景名称"
+difficulty: "medium"              # easy / medium / hard / adversarial
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:                          # 需要收集的所有 slot
+    departure: "北京"
+    destination: "上海"
+    date: "2026-04-01"
+  hidden_constraints:             # 用户不会直说的隐含约束
+    - "预算不超过1000元"
+  success_indicators:             # 命中任一即判定任务完成
+    - "预订成功"
+
+injections:                       # 中途注入事件
+  - trigger:
+      at_turn: 3                  # 第3轮触发 (也支持 when_slot_filled / when_keyword)
+      probability: 1.0
+    event_type: "user_changes_date"
+    description: "用户改了日期"
+    state_changes:
+      date: "2026-04-02"
+    user_mood_delta: -0.1         # 对用户情绪的影响
+```
+
 ## 技术栈
 
 - Python 3.11+
