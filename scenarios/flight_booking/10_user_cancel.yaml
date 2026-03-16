@@ -1,0 +1,81 @@
+# 场景 10: 用户中途取消
+# SOP路径: N1→...→I2(用户取消)→确认取消→END
+# 用户收集信息中途决定不订了，测试 Bot 的取消确认流程
+
+scenario_id: "sop_10_user_cancel"
+name: "中途取消-用户放弃预订"
+category: "flight_booking"
+tags: ["cancellation", "user_abort", "sop_coverage"]
+difficulty: "medium"
+description: "用户在提供部分信息后决定不订了，测试 Bot 能否礼貌确认取消并妥善结束"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "成都"
+    destination: "重庆"
+    date: "2026-04-10"
+    cabin_class: "economy"
+    passengers: 1
+  hidden_constraints:
+    - "其实用户突然想起来可以坐高铁去"
+  success_indicators:
+    - "不客气"
+    - "好的"
+    - "下次"
+    - "再见"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "3U8501"
+        airline: "四川航空"
+        price: 380
+        depart_time: "09:00"
+        arrive_time: "09:50"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "成都", destination: "重庆" }
+          response:
+            flights:
+              - { flight_no: "3U8501", airline: "四川航空", price: 380, depart_time: "09:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "3U8501" }
+          response: { success: true, order_id: "ORD20260410050", total_price: 380 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: {}
+    order: 1
+    required: false
+
+injections:
+  - trigger:
+      at_turn: 3
+      probability: 1.0
+    event_type: "user_cancels"
+    description: "用户突然想起可以坐高铁，决定取消订机票"
+    state_changes: {}
+    user_mood_delta: 0.0
+
+constraints:
+  max_turns: 8
+  max_duration_seconds: 90
+
+evaluation_config:
+  accuracy_weight: 0.15
+  safety_weight: 0.20
+  context_weight: 0.30
+  robustness_weight: 0.20
+  performance_weight: 0.15

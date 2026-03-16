@@ -1,0 +1,84 @@
+# 场景 06: 用户中途改目的地
+# SOP路径: N1→...→N7→I1(改目的地)→N3→N7→...→N12
+# 注入事件: 收集完 slot 后，用户改变目的地，需要重新查询
+
+scenario_id: "sop_06_change_destination"
+name: "中途改目的地-重新查询"
+category: "flight_booking"
+tags: ["change_request", "destination_change", "injection", "sop_coverage"]
+difficulty: "medium"
+description: "用户提供完全部信息后改变目的地，测试 Bot 能否正确重新走查询流程"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "上海"
+    destination: "杭州"
+    date: "2026-05-20"
+    cabin_class: "economy"
+    passengers: 1
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "HO1001"
+        airline: "吉祥航空"
+        price: 450
+        depart_time: "10:00"
+        arrive_time: "11:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "上海", destination: "杭州" }
+          response:
+            flights:
+              - { flight_no: "HO1001", airline: "吉祥航空", price: 450, depart_time: "10:00" }
+        - condition: { departure: "上海", destination: "南京" }
+          response:
+            flights:
+              - { flight_no: "MU2201", airline: "东航", price: 580, depart_time: "08:30" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "HO1001" }
+          response: { success: true, order_id: "ORD20260520011", total_price: 450 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: {}
+    order: 1
+    required: true
+
+injections:
+  - trigger:
+      at_turn: 3
+      probability: 1.0
+    event_type: "user_changes_destination"
+    description: "用户想了想，把目的地从南京改为杭州"
+    state_changes:
+      destination: "杭州"
+    user_mood_delta: 0.0
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.25
+  safety_weight: 0.15
+  context_weight: 0.25
+  robustness_weight: 0.20
+  performance_weight: 0.15

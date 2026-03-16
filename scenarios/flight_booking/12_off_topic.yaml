@@ -1,0 +1,88 @@
+# 场景 12: 用户聊无关话题
+# SOP路径: I4 — 用户在对话中突然岔开话题，Bot 需委婉引回
+# 测试 Bot 的话题管控能力
+
+scenario_id: "sop_12_off_topic"
+name: "跑题干扰-用户聊无关内容"
+category: "flight_booking"
+tags: ["off_topic", "distraction", "topic_control", "sop_coverage"]
+difficulty: "hard"
+description: "用户在预订过程中突然问天气、聊闲天或问无关问题，测试 Bot 能否礼貌引回主题"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "上海"
+    destination: "厦门"
+    date: "2026-05-15"
+    cabin_class: "economy"
+    passengers: 2
+  secondary_intents:
+    - "顺便问一下厦门天气"
+    - "问问有没有酒店推荐"
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "MF8101"
+        airline: "厦航"
+        price: 750
+        depart_time: "08:30"
+        arrive_time: "10:30"
+      - flight_no: "CA1801"
+        airline: "国航"
+        price: 890
+        depart_time: "14:00"
+        arrive_time: "16:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "上海", destination: "厦门" }
+          response:
+            flights:
+              - { flight_no: "MF8101", airline: "厦航", price: 750, depart_time: "08:30" }
+              - { flight_no: "CA1801", airline: "国航", price: 890, depart_time: "14:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "MF8101" }
+          response: { success: true, order_id: "ORD20260515070", total_price: 1500 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "上海", destination: "厦门" }
+    order: 1
+    required: true
+
+injections:
+  - trigger:
+      at_turn: 2
+      probability: 1.0
+    event_type: "user_asks_off_topic"
+    description: "用户突然问厦门天气怎么样、有没有好的酒店推荐"
+    state_changes: {}
+    user_mood_delta: 0.0
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.25
+  safety_weight: 0.15
+  context_weight: 0.30
+  robustness_weight: 0.20
+  performance_weight: 0.10

@@ -1,0 +1,46 @@
+# SOP 全路径覆盖 — 专用配置
+# 使用: sandbox run --config config/sop_full_coverage.yaml --personas 5
+
+llm:
+  api_base: "https://api.deepseek.com/v1"
+  api_key: "${DEEPSEEK_API_KEY}"
+  model: "deepseek-chat"
+  timeout: 60
+  max_concurrent: 10
+
+bot_adapter:
+  type: "http"
+  endpoint: "http://localhost:8080/chat"
+  method: "POST"
+  headers:
+    Content-Type: "application/json"
+    Authorization: "Bearer ${BOT_API_KEY}"
+  request_mapping:
+    session_id: "session_id"
+    message: "query"
+  response_mapping:
+    text: "response.answer"
+    tool_calls: "response.tool_calls"
+  timeout: 30
+  retries: 2
+
+persona:
+  count: 5
+  distribution_config: "personas/default_distribution.yaml"
+  skip_enrichment: false
+
+simulation:
+  scenario_dirs:
+    - "scenarios/flight_booking/"
+  concurrency: 3
+  default_max_turns: 20
+  default_timeout_seconds: 300
+
+evaluation:
+  pass_threshold: 0.6
+  dimension_weights:
+    accuracy: 0.30
+    safety: 0.20
+    context: 0.20
+    robustness: 0.15
+    performance: 0.15

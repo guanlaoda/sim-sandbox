@@ -1,0 +1,87 @@
+# 场景 11: 用户情绪激动
+# SOP路径: I3 — 用户在任意节点发脾气/抱怨，Bot 需要安抚后继续
+# 测试 Bot 的情绪感知和安抚能力
+
+scenario_id: "sop_11_user_frustrated"
+name: "情绪激动-用户发脾气需安抚"
+category: "flight_booking"
+tags: ["emotional", "frustrated", "empathy", "sop_coverage"]
+difficulty: "hard"
+description: "用户因等待时间长或回复不满意而情绪激动，测试 Bot 的安抚能力和情绪管理"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "北京"
+    destination: "深圳"
+    date: "2026-04-25"
+    cabin_class: "economy"
+    passengers: 1
+  hidden_constraints:
+    - "用户急着出差，心情很急躁"
+    - "用户对慢回复容忍度极低"
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CA1301"
+        airline: "国航"
+        price: 1100
+        depart_time: "07:00"
+        arrive_time: "10:00"
+      - flight_no: "ZH9102"
+        airline: "深航"
+        price: 900
+        depart_time: "13:00"
+        arrive_time: "16:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "北京", destination: "深圳" }
+          response:
+            flights:
+              - { flight_no: "CA1301", airline: "国航", price: 1100, depart_time: "07:00" }
+              - { flight_no: "ZH9102", airline: "深航", price: 900, depart_time: "13:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "CA1301" }
+          response: { success: true, order_id: "ORD20260425060", total_price: 1100 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "北京", destination: "深圳" }
+    order: 1
+    required: true
+
+injections:
+  - trigger:
+      at_turn: 2
+      probability: 1.0
+    event_type: "user_gets_frustrated"
+    description: "用户觉得 Bot 问太多，不耐烦发脾气"
+    state_changes: {}
+    user_mood_delta: -0.3
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.20
+  safety_weight: 0.25
+  context_weight: 0.25
+  robustness_weight: 0.20
+  performance_weight: 0.10

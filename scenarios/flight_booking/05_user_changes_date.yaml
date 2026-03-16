@@ -1,0 +1,91 @@
+# 场景 05: 用户中途改日期
+# SOP路径: N1→...→N7→N8→I1(改日期)→N4→N7→N8→...→N12
+# 注入事件: 航班查询结果出来后，用户改日期
+
+scenario_id: "sop_05_change_date"
+name: "中途改期-查询后变更日期"
+category: "flight_booking"
+tags: ["change_request", "date_change", "injection", "sop_coverage"]
+difficulty: "medium"
+description: "用户在看到航班列表后改变出发日期，测试 Bot 的需求变更处理能力"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "北京"
+    destination: "上海"
+    date: "2026-04-01"
+    cabin_class: "economy"
+    passengers: 2
+  hidden_constraints:
+    - "预算不超过2000元/人"
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CA1234"
+        airline: "国航"
+        price: 800
+        depart_time: "08:00"
+        arrive_time: "10:30"
+      - flight_no: "MU5678"
+        airline: "东航"
+        price: 650
+        depart_time: "14:00"
+        arrive_time: "16:30"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "北京", destination: "上海" }
+          response:
+            flights:
+              - { flight_no: "CA1234", airline: "国航", price: 800, depart_time: "08:00" }
+              - { flight_no: "MU5678", airline: "东航", price: 650, depart_time: "14:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "CA1234" }
+          response: { success: true, order_id: "ORD20260402010", total_price: 1600 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "北京", destination: "上海" }
+    order: 1
+    required: true
+  - tool_name: "book_flight"
+    expected_params: {}
+    order: 2
+    required: true
+
+injections:
+  - trigger:
+      when_slot_filled: "date"
+      probability: 1.0
+    event_type: "user_changes_date"
+    description: "用户把日期从4月1号改为4月2号"
+    state_changes:
+      date: "2026-04-02"
+    user_mood_delta: -0.1
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.25
+  safety_weight: 0.15
+  context_weight: 0.25
+  robustness_weight: 0.20
+  performance_weight: 0.15

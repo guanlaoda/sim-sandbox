@@ -1,0 +1,73 @@
+# 场景 08: 查无航班 — 推荐替代
+# SOP路径: N7→N7a(无结果)→推荐改日期/改目的地→N4/N3→N7→...→N12
+# 首次查询无航班，Bot 应推荐替代方案
+
+scenario_id: "sop_08_no_result_fallback"
+name: "查无航班-推荐替代方案"
+category: "flight_booking"
+tags: ["no_result", "fallback", "alternative", "sop_coverage"]
+difficulty: "medium"
+description: "用户想订的航线/日期无航班，测试 Bot 能否主动推荐替代日期或路线"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "拉萨"
+    destination: "三亚"
+    date: "2026-07-01"
+    cabin_class: "economy"
+    passengers: 1
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+    - "暂无直飞"
+    - "推荐"
+
+environment:
+  data:
+    available_flights: []
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "拉萨", destination: "三亚" }
+          response:
+            flights: []
+            message: "该航线暂无直飞航班"
+        - condition: { departure: "拉萨", destination: "成都" }
+          response:
+            flights:
+              - { flight_no: "TV9801", airline: "西藏航空", price: 1200, depart_time: "10:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "TV9801" }
+          response: { success: true, order_id: "ORD20260701030", total_price: 1200 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "拉萨", destination: "三亚" }
+    order: 1
+    required: true
+
+injections: []
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.20
+  safety_weight: 0.15
+  context_weight: 0.25
+  robustness_weight: 0.25
+  performance_weight: 0.15

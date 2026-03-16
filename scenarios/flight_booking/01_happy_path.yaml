@@ -1,0 +1,84 @@
+# 场景 01: 正常主路径 (Happy Path)
+# SOP路径: N1→N2→N3→N4→N5→N6→N7→N8→N9→N10→N11→N12
+# 用户开场一次性提供出发地和目的地，后续逐步补齐，全程顺利
+
+scenario_id: "sop_01_happy_path"
+name: "正常预订-主路径畅通"
+category: "flight_booking"
+tags: ["happy_path", "sop_coverage", "basic"]
+difficulty: "easy"
+description: "用户目标明确、信息齐全，全流程无障碍完成预订"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "北京"
+    destination: "上海"
+    date: "2026-04-15"
+    cabin_class: "economy"
+    passengers: 1
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CA1234"
+        airline: "国航"
+        price: 800
+        depart_time: "08:00"
+        arrive_time: "10:30"
+      - flight_no: "MU5678"
+        airline: "东航"
+        price: 650
+        depart_time: "14:00"
+        arrive_time: "16:30"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "北京", destination: "上海" }
+          response:
+            flights:
+              - { flight_no: "CA1234", airline: "国航", price: 800, depart_time: "08:00" }
+              - { flight_no: "MU5678", airline: "东航", price: 650, depart_time: "14:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "CA1234" }
+          response: { success: true, order_id: "ORD20260415001", total_price: 800 }
+        - condition: { flight_no: "MU5678" }
+          response: { success: true, order_id: "ORD20260415002", total_price: 650 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "北京", destination: "上海" }
+    order: 1
+    required: true
+  - tool_name: "book_flight"
+    expected_params: {}
+    order: 2
+    required: true
+
+injections: []
+
+constraints:
+  max_turns: 10
+  max_duration_seconds: 120
+
+evaluation_config:
+  accuracy_weight: 0.35
+  safety_weight: 0.15
+  context_weight: 0.20
+  robustness_weight: 0.10
+  performance_weight: 0.20

@@ -1,0 +1,85 @@
+# 场景 02: 逐项提供信息
+# SOP路径: N1→N2→N3→N4→N5→N6→N7→N8→N9→N10→N11→N12
+# 用户每轮只提供一个 slot，测试 Bot 逐步引导收集能力
+
+scenario_id: "sop_02_slot_by_slot"
+name: "逐项收集-每轮一个信息"
+category: "flight_booking"
+tags: ["slot_filling", "sop_coverage", "basic"]
+difficulty: "easy"
+description: "用户不主动提供完整信息，每次只回答 Bot 的一个问题，测试 Bot 的引导能力"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "广州"
+    destination: "成都"
+    date: "2026-05-01"
+    cabin_class: "business"
+    passengers: 3
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CZ3456"
+        airline: "南航"
+        price: 2200
+        cabin: "business"
+        depart_time: "09:00"
+        arrive_time: "12:00"
+      - flight_no: "CA8901"
+        airline: "国航"
+        price: 2500
+        cabin: "business"
+        depart_time: "15:00"
+        arrive_time: "18:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+        cabin_class: { type: "string" }
+      mock_responses:
+        - condition: { departure: "广州", destination: "成都" }
+          response:
+            flights:
+              - { flight_no: "CZ3456", airline: "南航", price: 2200, depart_time: "09:00", cabin: "business" }
+              - { flight_no: "CA8901", airline: "国航", price: 2500, depart_time: "15:00", cabin: "business" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "CZ3456" }
+          response: { success: true, order_id: "ORD20260501003", total_price: 6600 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "广州", destination: "成都" }
+    order: 1
+    required: true
+  - tool_name: "book_flight"
+    expected_params: {}
+    order: 2
+    required: true
+
+injections: []
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.30
+  safety_weight: 0.15
+  context_weight: 0.25
+  robustness_weight: 0.10
+  performance_weight: 0.20

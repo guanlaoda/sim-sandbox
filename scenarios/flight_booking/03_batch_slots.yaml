@@ -1,0 +1,84 @@
+# 场景 03: 批量提供信息
+# SOP路径: N1→N2+N3+N4+N5+N6→N7→N8→N9→N10→N11→N12
+# 用户开场一口气给出所有 slot，测试 Bot 一次性理解多 slot 能力
+
+scenario_id: "sop_03_batch_slots"
+name: "批量提供-一句话全信息"
+category: "flight_booking"
+tags: ["batch_input", "sop_coverage", "basic"]
+difficulty: "easy"
+description: "用户开场直接说出全部信息，测试 Bot 能否一次性理解并跳到查询环节"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "深圳"
+    destination: "北京"
+    date: "2026-06-10"
+    cabin_class: "economy"
+    passengers: 2
+  hidden_constraints: []
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "ZH9101"
+        airline: "深航"
+        price: 950
+        depart_time: "07:30"
+        arrive_time: "10:30"
+      - flight_no: "CA1598"
+        airline: "国航"
+        price: 1100
+        depart_time: "12:00"
+        arrive_time: "15:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "深圳", destination: "北京" }
+          response:
+            flights:
+              - { flight_no: "ZH9101", airline: "深航", price: 950, depart_time: "07:30" }
+              - { flight_no: "CA1598", airline: "国航", price: 1100, depart_time: "12:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "ZH9101" }
+          response: { success: true, order_id: "ORD20260610004", total_price: 1900 }
+        - condition: { flight_no: "CA1598" }
+          response: { success: true, order_id: "ORD20260610005", total_price: 2200 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "深圳", destination: "北京" }
+    order: 1
+    required: true
+  - tool_name: "book_flight"
+    expected_params: {}
+    order: 2
+    required: true
+
+injections: []
+
+constraints:
+  max_turns: 8
+  max_duration_seconds: 90
+
+evaluation_config:
+  accuracy_weight: 0.30
+  safety_weight: 0.15
+  context_weight: 0.15
+  robustness_weight: 0.10
+  performance_weight: 0.30

@@ -1,0 +1,111 @@
+# 场景 13: 反复修改多个 slot
+# SOP路径: I1×多次 — 用户反复修改日期、舱位、人数，Bot 需持续跟踪
+# 高压测试 Bot 的上下文保持能力
+
+scenario_id: "sop_13_multi_change"
+name: "反复修改-多次变更需求"
+category: "flight_booking"
+tags: ["multi_change", "stress_test", "context_tracking", "sop_coverage"]
+difficulty: "hard"
+description: "用户先改日期、再改舱位、又改人数，反复3次变更，测试 Bot 的上下文保持和状态跟踪"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "广州"
+    destination: "北京"
+    date: "2026-06-01"
+    cabin_class: "business"
+    passengers: 3
+  hidden_constraints:
+    - "用户一开始说经济舱2人，后来不断改"
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CZ3000"
+        airline: "南航"
+        price: 1500
+        cabin: "economy"
+        depart_time: "08:00"
+      - flight_no: "CZ3001"
+        airline: "南航"
+        price: 3200
+        cabin: "business"
+        depart_time: "08:00"
+      - flight_no: "CA1600"
+        airline: "国航"
+        price: 3500
+        cabin: "business"
+        depart_time: "12:00"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "广州", destination: "北京" }
+          response:
+            flights:
+              - { flight_no: "CZ3000", airline: "南航", price: 1500, cabin: "economy", depart_time: "08:00" }
+              - { flight_no: "CZ3001", airline: "南航", price: 3200, cabin: "business", depart_time: "08:00" }
+              - { flight_no: "CA1600", airline: "国航", price: 3500, cabin: "business", depart_time: "12:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "CZ3001" }
+          response: { success: true, order_id: "ORD20260601080", total_price: 9600 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "广州", destination: "北京" }
+    order: 1
+    required: true
+
+injections:
+  - trigger:
+      when_slot_filled: "cabin_class"
+      probability: 1.0
+    event_type: "user_changes_cabin"
+    description: "用户把舱位从经济舱改为商务舱"
+    state_changes:
+      cabin_class: "business"
+    user_mood_delta: 0.0
+
+  - trigger:
+      at_turn: 4
+      probability: 1.0
+    event_type: "user_changes_passengers"
+    description: "用户把人数从2人改为3人"
+    state_changes:
+      passengers: 3
+    user_mood_delta: -0.05
+
+  - trigger:
+      at_turn: 6
+      probability: 1.0
+    event_type: "user_changes_date"
+    description: "用户把日期从5月30号改为6月1号"
+    state_changes:
+      date: "2026-06-01"
+    user_mood_delta: -0.05
+
+constraints:
+  max_turns: 20
+  max_duration_seconds: 240
+
+evaluation_config:
+  accuracy_weight: 0.25
+  safety_weight: 0.10
+  context_weight: 0.35
+  robustness_weight: 0.20
+  performance_weight: 0.10

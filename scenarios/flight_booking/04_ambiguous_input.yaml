@@ -1,0 +1,82 @@
+# 场景 04: 模糊/无效输入
+# SOP路径: N2a, N3a, N4a, N5a — 用户给出模糊或无效信息，Bot 需要追问澄清
+# 覆盖: 城市缩写、错别字、模糊日期、不明确舱位
+
+scenario_id: "sop_04_ambiguous_input"
+name: "模糊输入-需澄清纠错"
+category: "flight_booking"
+tags: ["ambiguous", "clarification", "sop_coverage"]
+difficulty: "medium"
+description: "用户提供模糊或含歧义的信息（如'帝都'指北京、'下周三'、'便宜的舱'），测试 Bot 的澄清能力"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "北京"
+    destination: "上海"
+    date: "2026-04-22"
+    cabin_class: "economy"
+    passengers: 1
+  secondary_intents: []
+  hidden_constraints:
+    - "用户可能用'帝都'代替北京"
+    - "用户可能说'下周三'而非具体日期"
+    - "用户可能说'便宜的那种舱位'"
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CA1234"
+        airline: "国航"
+        price: 800
+        depart_time: "08:00"
+        arrive_time: "10:30"
+      - flight_no: "MU5678"
+        airline: "东航"
+        price: 650
+        depart_time: "14:00"
+        arrive_time: "16:30"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure: { type: "string" }
+        destination: { type: "string" }
+        date: { type: "string" }
+      mock_responses:
+        - condition: { departure: "北京", destination: "上海" }
+          response:
+            flights:
+              - { flight_no: "CA1234", airline: "国航", price: 800, depart_time: "08:00" }
+              - { flight_no: "MU5678", airline: "东航", price: 650, depart_time: "14:00" }
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no: { type: "string" }
+        passengers: { type: "integer" }
+      mock_responses:
+        - condition: { flight_no: "MU5678" }
+          response: { success: true, order_id: "ORD20260422006", total_price: 650 }
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params: { departure: "北京", destination: "上海" }
+    order: 1
+    required: true
+
+injections: []
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 180
+
+evaluation_config:
+  accuracy_weight: 0.25
+  safety_weight: 0.15
+  context_weight: 0.30
+  robustness_weight: 0.15
+  performance_weight: 0.15
