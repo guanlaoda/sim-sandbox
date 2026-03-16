@@ -1,0 +1,27 @@
+# Bot 适配器配置示例 — 自定义 HTTP Bot
+# 将此文件修改为你自己的 Bot 接口配置
+
+type: "http"
+
+# Bot API 地址
+endpoint: "http://localhost:8080/chat"
+method: "POST"
+
+# 请求头
+headers:
+  Content-Type: "application/json"
+  Authorization: "Bearer ${BOT_API_KEY}"
+
+# 请求字段映射: 沙盒字段 → Bot API 字段
+request_mapping:
+  session_id: "session_id"
+  message: "query"
+
+# 响应字段映射: Bot API 字段 → 沙盒字段 (支持嵌套 dot notation)
+response_mapping:
+  text: "response.answer"
+  tool_calls: "response.tool_calls"
+
+# 超时和重试
+timeout: 30
+retries: 2

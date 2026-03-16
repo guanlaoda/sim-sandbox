@@ -1,0 +1,140 @@
+# 场景: 国内航班预订 — 基础版
+# 用途: 测试 Bot 的基本航班预订能力
+
+scenario_id: "book_flight_001"
+name: "国内航班预订-经济舱-有隐含约束"
+category: "flight_booking"
+tags: ["booking", "domestic", "economy"]
+difficulty: "medium"
+description: "用户想订北京到上海的经济舱航班，但有预算和时间的隐含约束"
+
+user_goal:
+  primary_intent: "预订航班"
+  slots:
+    departure: "北京"
+    destination: "上海"
+    date: "2026-04-01"
+    cabin_class: "economy"
+    passengers: 2
+  hidden_constraints:
+    - "预算不超过2000元/人"
+    - "不坐晚上10点之后的航班"
+    - "偏好大航空公司"
+  success_indicators:
+    - "已为您预订"
+    - "预订成功"
+    - "订单号"
+
+environment:
+  data:
+    available_flights:
+      - flight_no: "CA1234"
+        airline: "国航"
+        price: 800
+        depart_time: "08:00"
+        arrive_time: "10:30"
+      - flight_no: "MU5678"
+        airline: "东航"
+        price: 650
+        depart_time: "14:00"
+        arrive_time: "16:30"
+      - flight_no: "9C8899"
+        airline: "春秋航空"
+        price: 350
+        depart_time: "22:30"
+        arrive_time: "01:00"
+      - flight_no: "CA5566"
+        airline: "国航"
+        price: 2500
+        depart_time: "10:00"
+        arrive_time: "12:30"
+  tools_available:
+    - name: "search_flight"
+      description: "搜索航班"
+      parameters:
+        departure:
+          type: "string"
+        destination:
+          type: "string"
+        date:
+          type: "string"
+      mock_responses:
+        - condition:
+            departure: "北京"
+            destination: "上海"
+          response:
+            flights:
+              - flight_no: "CA1234"
+                airline: "国航"
+                price: 800
+                depart_time: "08:00"
+              - flight_no: "MU5678"
+                airline: "东航"
+                price: 650
+                depart_time: "14:00"
+              - flight_no: "9C8899"
+                airline: "春秋航空"
+                price: 350
+                depart_time: "22:30"
+              - flight_no: "CA5566"
+                airline: "国航"
+                price: 2500
+                depart_time: "10:00"
+    - name: "book_flight"
+      description: "预订航班"
+      parameters:
+        flight_no:
+          type: "string"
+        passengers:
+          type: "integer"
+      mock_responses:
+        - condition:
+            flight_no: "CA1234"
+          response:
+            success: true
+            order_id: "ORD20260401001"
+            total_price: 1600
+        - condition:
+            flight_no: "9C8899"
+          response:
+            success: true
+            order_id: "ORD20260401002"
+            total_price: 700
+
+expected_skill_calls:
+  - tool_name: "search_flight"
+    expected_params:
+      departure: "北京"
+      destination: "上海"
+    order: 1
+    required: true
+  - tool_name: "book_flight"
+    expected_params:
+      flight_no: "CA1234"
+    order: 2
+    required: true
+
+injections:
+  - trigger:
+      when_slot_filled: "date"
+      probability: 0.5
+    event_type: "user_changes_date"
+    description: "用户临时改了日期，从4月1号改到4月2号"
+    state_changes:
+      date: "2026-04-02"
+    user_mood_delta: -0.1
+
+constraints:
+  max_turns: 15
+  max_duration_seconds: 120
+
+evaluation_config:
+  accuracy_weight: 0.30
+  safety_weight: 0.20
+  context_weight: 0.20
+  robustness_weight: 0.15
+  performance_weight: 0.15
+  custom_checks:
+    - name: "hidden_constraint_respected"
+      description: "预订的航班是否满足用户的隐含约束"
+      check_type: "llm_judge"

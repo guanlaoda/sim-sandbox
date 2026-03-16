@@ -1,0 +1,62 @@
+# 用户画像采样分布配置
+# 控制自动生成用户画像时各维度的分布
+
+seed: 42
+
+distributions:
+  age_group:
+    young: 0.4
+    middle: 0.4
+    senior: 0.2
+
+  tech_literacy:
+    type: normal
+    mean: 0.6
+    std: 0.2
+
+  patience_level:
+    type: uniform
+    min: 0.2
+    max: 0.9
+
+  communication_style:
+    concise: 0.30
+    verbose: 0.30
+    emotional: 0.20
+    formal: 0.20
+
+  intent_clarity:
+    type: normal
+    mean: 0.7
+    std: 0.15
+
+# 属性间相关性 — 条件概率重写
+correlations:
+  - if:
+      age_group: senior
+    then:
+      tech_literacy:
+        mean: 0.3
+        std: 0.15
+      patience_level:
+        mean: 0.7
+        std: 0.15
+
+  - if:
+      age_group: young
+    then:
+      tech_literacy:
+        mean: 0.8
+        std: 0.1
+      communication_style:
+        concise: 0.4
+        verbose: 0.2
+        emotional: 0.3
+        formal: 0.1
+
+  - if:
+      communication_style: formal
+    then:
+      intent_clarity:
+        mean: 0.85
+        std: 0.1
