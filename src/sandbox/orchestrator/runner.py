@@ -63,11 +63,30 @@ class SimulationRunner:
     ) -> None:
         self._config = config
         self._bot = bot_adapter
-        self._strategy = strategy or RuleBasedStrategy()
+        self._strategy = strategy or self._default_strategy(config)
         self._persona_gen = PersonaGenerator(config=config.persona, project_root=Path.cwd())
         self._scenario_loader = ScenarioLoader()
         self._registry = ScenarioRegistry()
         self._pipeline = EvaluationPipeline()
+
+    @staticmethod
+    def _default_strategy(config: SandboxConfig) -> RuleBasedStrategy:
+        """创建默认策略，尝试注入 LLM 客户端以支持噪声"""
+        api_key = config.llm.resolve_api_key()
+        llm_client = None
+        if api_key:
+            try:
+                import openai
+                llm_client = openai.AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=config.llm.api_base,
+                )
+            except Exception:
+                pass
+        return RuleBasedStrategy(
+            llm_client=llm_client,
+            model=config.llm.default_model,
+        )
 
     async def run_single(
         self,

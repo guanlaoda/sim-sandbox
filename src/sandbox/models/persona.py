@@ -73,6 +73,8 @@ class UserPersona(BaseModel):
 
     def to_system_prompt(self) -> str:
         """将画像转为 LLM system prompt 片段，用于对话模拟"""
+        from ..simulator.noise import build_noise_style_instructions
+
         habits = ", ".join(self.language_habits) if self.language_habits else "无特殊习惯"
         prompt = (
             f"你正在扮演一个真实用户。\n\n"
@@ -88,32 +90,11 @@ class UserPersona(BaseModel):
             f"当前心情: {self.current_mood} (0=很差, 1=很好)\n"
         )
 
-        # 噪声风格化提示
-        np_ = self.skeleton.noise_profile
-        style_hints: list[str] = []
-        if np_.dialect != Dialect.NONE:
-            dialect_desc = {
-                Dialect.NORTHERN: "你说话带北方口音，会用儿化音、'咋整'、'中不中'、'得嘞'等北方口语",
-                Dialect.SOUTHERN: "你说话带南方口音，会说'蛮好的'、'晓得'、'要得'等南方口语",
-                Dialect.CANTONESE: "你普通话夹杂粤语词，偶尔说'唔该'、'有冇'、'靓'",
-                Dialect.SICHUAN: "你说话带川渝口音，会说'要得'、'巴适'、'莫得'、'啥子'",
-                Dialect.SHANGHAI: "你说话带上海口音，偶尔冒出'阿拉'、'侬'、'老好的'",
-            }
-            style_hints.append(dialect_desc.get(np_.dialect, ""))
-        if np_.internet_slang:
-            style_hints.append("你喜欢用网络用语，如 yyds、绝绝子、6、蚌埠住了等")
-        if np_.emoji_frequency > 0.3:
-            style_hints.append("你喜欢在消息里加表情符号如 😄👌🔥😭")
-        if np_.filler_word_rate > 0.3:
-            style_hints.append("你说话时经常带语气词，如'嗯'、'那个'、'就是说'、'额'")
-        if np_.self_correction_rate > 0.3:
-            style_hints.append("你说话偶尔会说错再纠正，如'去北京，不对，去上海'")
-        if np_.punctuation_chaos > 0.3:
-            style_hints.append("你打字不太注意标点，经常省略或多打感叹号")
-
-        if style_hints:
-            prompt += "\n## 你的说话风格\n"
-            for hint in style_hints:
-                prompt += f"- {hint}\n"
+        # 噪声风格化提示（由 LLM 直接生成带噪声的文本）
+        noise_instructions = build_noise_style_instructions(
+            self.skeleton.noise_profile, self.current_mood
+        )
+        if noise_instructions:
+            prompt += f"\n## 你的说话风格\n{noise_instructions}\n"
 
         return prompt

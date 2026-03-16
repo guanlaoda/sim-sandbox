@@ -450,20 +450,28 @@ def chat(
 
     # 构建模拟器组件
     adapter = _HumanBotAdapterWithQuit()
-    if strategy_name == "rule":
-        strategy = RuleBasedStrategy(seed=seed)
-    else:
-        # 默认使用 LLM 策略
-        import openai
-        api_key = cfg.llm.resolve_api_key()
-        if not api_key:
-            console.print("[red]未配置 DEEPSEEK_API_KEY 环境变量，无法使用 LLM 策略[/red]")
-            console.print("[dim]提示: export DEEPSEEK_API_KEY=your_key 或者用 --strategy rule 使用规则策略[/dim]")
-            raise typer.Exit(1)
+
+    # 初始化 LLM 客户端（Rule 策略也需要用于噪声注入）
+    import openai
+    api_key = cfg.llm.resolve_api_key()
+    llm_client = None
+    if api_key:
         llm_client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=cfg.llm.api_base,
         )
+
+    if strategy_name == "rule":
+        strategy = RuleBasedStrategy(
+            seed=seed,
+            llm_client=llm_client,
+            model=cfg.llm.default_model,
+        )
+    else:
+        if not llm_client:
+            console.print("[red]未配置 DEEPSEEK_API_KEY 环境变量，无法使用 LLM 策略[/red]")
+            console.print("[dim]提示: export DEEPSEEK_API_KEY=your_key 或者用 --strategy rule 使用规则策略[/dim]")
+            raise typer.Exit(1)
         strategy = LLMAssistedStrategy(
             llm_client=llm_client,
             model=cfg.llm.default_model,
