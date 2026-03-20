@@ -61,11 +61,15 @@ sim-sandbox/
 │   ├── user-simulation/
 │   ├── turn-analysis/
 │   └── evaluation-judge/
+├── docs/                  # 设计文档
+│   └── architecture-agents-skills.md  # 多Agent & Skill架构设计
 ├── config/                # 配置文件
 ├── scenarios/             # 场景 YAML 示例
 ├── personas/              # 画像分布配置
 └── tests/                 # Pytest 测试
 ```
+
+> 📖 多 Agent & Skill 架构的详细设计文档见 [docs/architecture-agents-skills.md](docs/architecture-agents-skills.md)
 
 ## 快速开始
 
